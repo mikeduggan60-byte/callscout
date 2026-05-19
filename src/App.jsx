@@ -1022,12 +1022,13 @@ export default function App() {
       }));
       setTrending(listWithPrices);
 
-      // Step 3: AI home recs using real prices
+      // Step 3: AI home recs — always call with tickers, fall back to defaults if needed
       const topForRecs = listWithPrices.filter(t => t.price).slice(0, 6).map(t => t.ticker);
-      if (topForRecs.length) {
-        const hr = await claude_home_recs(topForRecs);
-        setHomeRecs(hr);
-      }
+      const recsInput = topForRecs.length >= 3
+        ? topForRecs
+        : ['NVDA', 'AAPL', 'TSLA', 'AMD', 'META', 'MSFT'];
+      const hr = await claude_home_recs(recsInput);
+      setHomeRecs(hr);
       setHomeLoading(false);
     };
     load();
@@ -1105,4 +1106,3 @@ export default function App() {
     </>
   );
 }
-
