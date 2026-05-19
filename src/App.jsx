@@ -158,7 +158,7 @@ async function tradier_full_chain(symbol, token, stockPrice) {
     const expData = await expR.json();
     const rawDates = expData?.expirations?.date;
     if (!rawDates) return null;
-    const dates = (Array.isArray(rawDates) ? rawDates : [rawDates]).slice(0, 6);
+    const dates = (Array.isArray(rawDates) ? rawDates : [rawDates]).slice(0, 12);
 
     // Step 2: fetch all chains in parallel
     const today = new Date();
@@ -619,27 +619,66 @@ function HomeScreen({ onSearch, trending, homeRecs, loading }) {
 // ─────────────────────────────────────────────
 // OPTIONS CHAIN
 // ─────────────────────────────────────────────
+const RANGE_OPTIONS = [
+  { label: '2 Weeks', days: 14 },
+  { label: '1 Month', days: 30 },
+  { label: '3 Months', days: 90 },
+  { label: '6 Months', days: 180 },
+  { label: '1 Year', days: 365 },
+  { label: 'All', days: Infinity },
+];
+
 function Chain({ expirations, price }) {
-  const [expIdx, setExpIdx] = useState(2);
+  const [expIdx, setExpIdx] = useState(0);
   const [hl, setHl] = useState(null);
+  const [rangeDays, setRangeDays] = useState(90);
+
   if (!expirations?.length) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--t3)', fontFamily: 'var(--mono)', fontSize: 12 }}>Building chain...</div>;
-  const exp = expirations[Math.min(expIdx, expirations.length - 1)];
+
+  const filtered = expirations.filter(e => e.dte <= rangeDays);
+  const visible = filtered.length ? filtered : expirations;
+  const safeIdx = Math.min(expIdx, visible.length - 1);
+  const exp = visible[safeIdx];
+
   const COL = ['STRIKE', 'BID', 'ASK', 'LAST', 'Δ DELTA', 'θ THETA', 'IV %', 'VOLUME', 'OPEN INT', 'BREAKEVEN'];
   return (
     <div>
+      {/* Range selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: 1.5, flexShrink: 0 }}>SHOW OUT TO:</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {RANGE_OPTIONS.map(opt => (
+            <button key={opt.label} onClick={() => { setRangeDays(opt.days); setExpIdx(0); setHl(null); }} className="btn" style={{
+              background: rangeDays === opt.days ? 'var(--green)' : 'var(--bg3)',
+              color: rangeDays === opt.days ? '#07090f' : 'var(--t2)',
+              border: `1px solid ${rangeDays === opt.days ? 'var(--green)' : 'var(--border2)'}`,
+              padding: '5px 14px', fontSize: 12, fontFamily: 'var(--mono)',
+              fontWeight: rangeDays === opt.days ? 600 : 400,
+            }}>
+              {opt.label}
+              <span style={{ opacity: .5, fontSize: 10, marginLeft: 5 }}>
+                {expirations.filter(e => e.dte <= opt.days).length || expirations.length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Expiration tabs */}
       <div className="scroll" style={{ display: 'flex', gap: 8, marginBottom: 18, paddingBottom: 4 }}>
-        {expirations.map((e, i) => (
+        {visible.map((e, i) => (
           <button key={e.date} onClick={() => { setExpIdx(i); setHl(null); }} className="btn" style={{
-            background: expIdx === i ? 'var(--green)' : 'var(--bg3)',
-            color: expIdx === i ? '#07090f' : 'var(--t2)',
-            border: `1px solid ${expIdx === i ? 'var(--green)' : 'var(--border2)'}`,
+            background: safeIdx === i ? 'var(--green)' : 'var(--bg3)',
+            color: safeIdx === i ? '#07090f' : 'var(--t2)',
+            border: `1px solid ${safeIdx === i ? 'var(--green)' : 'var(--border2)'}`,
             padding: '5px 14px', fontSize: 12, fontFamily: 'var(--mono)', whiteSpace: 'nowrap',
-            fontWeight: expIdx === i ? 600 : 400,
+            fontWeight: safeIdx === i ? 600 : 400,
           }}>
             {e.date} <span style={{ opacity: .6 }}>({e.dte}d)</span>
           </button>
         ))}
       </div>
+
       <div className="scroll">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--mono)', fontSize: 12 }}>
           <thead>
@@ -658,15 +697,15 @@ function Chain({ expirations, price }) {
                   <td style={{ padding: '8px 12px', textAlign: 'right', color: s.atm ? 'var(--green)' : 'var(--t1)', fontWeight: s.atm ? 600 : 400 }}>
                     ${s.strike}{s.atm && <span style={{ fontSize: 8, marginLeft: 4, opacity: .6 }}>ATM</span>}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>{s.bid.toFixed(2)}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>{s.ask.toFixed(2)}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>{s.last.toFixed(2)}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: s.delta > .5 ? 'var(--green)' : s.delta < .25 ? 'var(--t3)' : 'var(--t1)' }}>{s.delta.toFixed(3)}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--red)' }}>{s.theta.toFixed(3)}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: s.iv > 45 ? 'var(--amber)' : 'var(--t2)' }}>{s.iv}%</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>{typeof s.bid === 'number' ? s.bid.toFixed(2) : s.bid}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right' }}>{typeof s.ask === 'number' ? s.ask.toFixed(2) : s.ask}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>{typeof s.last === 'number' ? s.last.toFixed(2) : s.last}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: typeof s.delta === 'number' && s.delta > .5 ? 'var(--green)' : typeof s.delta === 'number' && s.delta < .25 ? 'var(--t3)' : 'var(--t1)' }}>{typeof s.delta === 'number' ? s.delta.toFixed(3) : s.delta}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--red)' }}>{typeof s.theta === 'number' ? s.theta.toFixed(3) : s.theta}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: typeof s.iv === 'number' && s.iv > 45 ? 'var(--amber)' : 'var(--t2)' }}>{typeof s.iv === 'number' ? `${s.iv}%` : s.iv}</td>
                   <td style={{ padding: '8px 12px', textAlign: 'right', color: s.volume > 1000 ? 'var(--green)' : 'var(--t2)' }}>{s.volume.toLocaleString()}</td>
                   <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>{s.oi.toLocaleString()}</td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>${s.breakeven.toFixed(2)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--t2)' }}>${typeof s.breakeven === 'number' ? s.breakeven.toFixed(2) : s.breakeven}</td>
                 </tr>
               );
             })}
