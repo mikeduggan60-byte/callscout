@@ -300,9 +300,10 @@ Select the 3 most interesting for a LONG CALL play. Use realistic, current optio
       }),
     });
     const d = await r.json();
+    console.log('Claude home response:', JSON.stringify(d).slice(0, 200));
     const txt = d.content?.find(c => c.type === 'text')?.text || '[]';
     return JSON.parse(txt.replace(/```json|```/g, '').trim());
-  } catch { return []; }
+  } catch (e) { console.error('Claude home recs error:', e); return []; }
 }
 
 async function claude_ticker_recs(ticker, price, chain, posts, stData, maxCost = null) {
@@ -998,8 +999,11 @@ export default function App() {
     const load = async () => {
       setHomeLoading(true);
 
-      // Step 1: get trending lists
-      const [rtData, stT] = await Promise.all([reddit_trending(), st_trending()]);
+      // Step 1: get trending lists — wrapped individually so one failure doesn't block the rest
+      let rtData = [], stT = [];
+      try { rtData = await reddit_trending(); } catch { rtData = []; }
+      try { stT = await st_trending(); } catch { stT = []; }
+
       const map = {};
       rtData.forEach(({ ticker: t, mentions }) => { map[t] = { ticker: t, mentions, price: null, changePct: null, live: false }; });
       stT.slice(0, 10).forEach(t => { if (!map[t]) map[t] = { ticker: t, mentions: 0, price: null, changePct: null, live: false }; });
@@ -1008,12 +1012,12 @@ export default function App() {
       });
       const list = Object.values(map).slice(0, 9);
 
-      // Show trending immediately (prices loading)
+      // Show trending immediately with fallback prices
       setTrending(list.map(t => ({ ...t, price: FALLBACK_PRICES[t.ticker] || null })));
 
-      // Step 2: fetch real prices from Yahoo Finance
-      const syms = list.map(t => t.ticker);
-      const priceMap = await fetchYahooPrices(syms);
+      // Step 2: fetch real prices
+      let priceMap = {};
+      try { priceMap = await fetchYahooPrices(list.map(t => t.ticker)); } catch { priceMap = {}; }
       const listWithPrices = list.map(t => ({
         ...t,
         price: priceMap[t.ticker]?.price ?? FALLBACK_PRICES[t.ticker] ?? null,
@@ -1022,16 +1026,19 @@ export default function App() {
       }));
       setTrending(listWithPrices);
 
-      // Step 3: AI home recs — always call with tickers, fall back to defaults if needed
+      // Step 3: AI home recs — always fire regardless of price fetch result
       const topForRecs = listWithPrices.filter(t => t.price).slice(0, 6).map(t => t.ticker);
       const recsInput = topForRecs.length >= 3
         ? topForRecs
         : ['NVDA', 'AAPL', 'TSLA', 'AMD', 'META', 'MSFT'];
-      const hr = await claude_home_recs(recsInput);
-      setHomeRecs(hr);
+      try {
+        const hr = await claude_home_recs(recsInput);
+        setHomeRecs(hr);
+      } catch (e) { console.error('Home recs error:', e); }
+
       setHomeLoading(false);
     };
-    load();
+    load().catch(e => { console.error('Home load error:', e); setHomeLoading(false); });
   }, [screen]);
 
   // ── Ticker research ──
