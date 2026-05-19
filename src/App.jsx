@@ -204,9 +204,7 @@ async function tradier_full_chain(symbol, token, stockPrice) {
 
 async function reddit_trending() {
   try {
-    const r = await fetch('https://www.reddit.com/r/wallstreetbets/hot.json?limit=30', {
-      headers: { Accept: 'application/json' },
-    });
+    const r = await fetch('/api/reddit?path=r/wallstreetbets/hot.json%3Flimit%3D30');
     if (!r.ok) return [];
     const d = await r.json();
     const SKIP = new Set('THE AND FOR ARE BUT NOT YOU ALL CAN WAS ONE OUR OUT DAY GET HAS HOW ITS NEW NOW SEE TWO WAY WHO DID MAY PUT SAY TOO USE WSB DD IMO LOL ETF CEO IPO EPS ATH GPU USA EUR GDP FED SEC YTD YOLO EDIT THIS WITH FROM THEY BEEN HAVE WILL WHAT WHEN THEN THAT INTO SOME ALSO JUST OVER LIKE BACK ONLY VERY EVEN HIGH MUCH GOOD KEEP LAST LONG MADE MAKE MANY MOVE NEED NEXT KNOW COME BULL BEAR CALL PUTS HODL FOMO ATM OTM ITM PLAY HUGE BOND RATE ZERO HOLD SELL MORE LESS BOTH EACH DOWN WENT LOST GAIN SOLD PAID HITS BUY SPY QQQ IWM VIX SPX NDX'.split(' '));
@@ -225,7 +223,8 @@ async function reddit_search(ticker) {
   const posts = [];
   for (const sub of subs) {
     try {
-      const r = await fetch(`https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(ticker)}&sort=hot&limit=5&restrict_sr=on&t=week`, { headers: { Accept: 'application/json' } });
+      const path = `r/${sub}/search.json%3Fq%3D${encodeURIComponent(ticker)}%26sort%3Dhot%26limit%3D5%26restrict_sr%3Don%26t%3Dweek`;
+      const r = await fetch(`/api/reddit?path=${path}`);
       if (!r.ok) continue;
       const d = await r.json();
       d.data?.children?.forEach(c => posts.push({
@@ -241,7 +240,7 @@ async function reddit_search(ticker) {
 
 async function st_trending() {
   try {
-    const r = await fetch('https://api.stocktwits.com/api/2/trending/symbols.json');
+    const r = await fetch('/api/stocktwits?path=trending/symbols.json');
     if (!r.ok) return [];
     const d = await r.json();
     return (d.response?.symbols || []).map(s => s.symbol);
@@ -250,7 +249,7 @@ async function st_trending() {
 
 async function st_sentiment(ticker) {
   try {
-    const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${ticker}.json`);
+    const r = await fetch(`/api/stocktwits?path=streams/symbol/${ticker}.json`);
     if (!r.ok) return null;
     const d = await r.json();
     const msgs = d.messages || [];
@@ -272,7 +271,7 @@ async function claude_home_recs(tickers) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1200,
         messages: [{
           role: 'user',
@@ -331,7 +330,7 @@ async function claude_ticker_recs(ticker, price, chain, posts, stData, maxCost =
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1400,
         messages: [{
           role: 'user',
