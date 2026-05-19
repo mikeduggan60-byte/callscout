@@ -87,32 +87,16 @@ async function fetchYahooPrice(ticker) {
 }
 
 async function fetchYahooPrices(tickers) {
-  const sym = tickers.join(',');
-  const urls = [
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${sym}`,
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}`,
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!r.ok) continue;
-      const d = await r.json();
-      const results = d?.quoteResponse?.result || [];
-      if (results.length === 0) continue;
-      const map = {};
-      results.forEach(q => {
-        map[q.symbol] = {
-          price: q.regularMarketPrice,
-          changePct: q.regularMarketChangePercent != null
-            ? +q.regularMarketChangePercent.toFixed(2)
-            : null,
-          live: true,
-        };
-      });
-      return map;
-    } catch { /* try next */ }
-  }
-  return {};
+  // Use the same reliable v8 chart endpoint as single-ticker lookups, in parallel
+  const results = await Promise.all(tickers.map(async t => {
+    const data = await fetchYahooPrice(t);
+    return { ticker: t, data };
+  }));
+  const map = {};
+  results.forEach(({ ticker, data }) => {
+    if (data) map[ticker] = data;
+  });
+  return map;
 }
 
 function seededRng(seed) {
