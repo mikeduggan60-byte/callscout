@@ -59,35 +59,17 @@ const FALLBACK_PRICES = {
   BABA:90,NIO:5,SNAP:10,HOOD:20,RIVN:12,LCID:3,GME:22,AMC:4,
 };
 
-// ─── Yahoo Finance price fetching ───────────────
+// ─── Yahoo Finance price fetching (via /api/price proxy) ───────────────
 async function fetchYahooPrice(ticker) {
-  const urls = [
-    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`,
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!r.ok) continue;
-      const d = await r.json();
-      const meta = d?.chart?.result?.[0]?.meta;
-      if (meta?.regularMarketPrice) {
-        return {
-          price: meta.regularMarketPrice,
-          prev: meta.chartPreviousClose || meta.previousClose,
-          changePct: meta.chartPreviousClose
-            ? +((( meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100).toFixed(2)
-            : null,
-          live: true,
-        };
-      }
-    } catch { /* try next */ }
-  }
-  return null;
+  try {
+    const r = await fetch(`/api/price?ticker=${ticker}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.price ? d : null;
+  } catch { return null; }
 }
 
 async function fetchYahooPrices(tickers) {
-  // Use the same reliable v8 chart endpoint as single-ticker lookups, in parallel
   const results = await Promise.all(tickers.map(async t => {
     const data = await fetchYahooPrice(t);
     return { ticker: t, data };
@@ -286,7 +268,7 @@ async function st_sentiment(ticker) {
 
 async function claude_home_recs(tickers) {
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('/api/claude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -344,7 +326,7 @@ async function claude_ticker_recs(ticker, price, chain, posts, stData, maxCost =
       ? `HARD BUDGET CONSTRAINT: Only recommend contracts where ask × 100 ≤ $${maxCost}. Do not suggest any contract costing more than $${maxCost} total.`
       : '';
 
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('/api/claude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1123,3 +1105,4 @@ export default function App() {
     </>
   );
 }
+
